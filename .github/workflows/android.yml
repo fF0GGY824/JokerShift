@@ -23,7 +23,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -s JokerShiftProject для апк.zip
+          test -s "JokerShiftProject для апк.zip"
           python3 - <<'PY'
           import zipfile
           from pathlib import Path, PurePosixPath
