@@ -1,0 +1,24 @@
+name: Prepare Godot Linux Validator
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/godot_validator.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-tool:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - name: Download Godot 4.7.2 Linux
+        run: |
+          curl -fL --retry 3 -o godot-linux.zip "https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip"
+          unzip -tq godot-linux.zip
+      - name: Publish validator
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-linux-validator
+          path: godot-linux.zip
+          retention-days: 1
