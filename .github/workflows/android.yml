@@ -46,6 +46,38 @@ jobs:
               print("Verified JokerShift project, 55 cards.")
           PY
 
+      - name: Make mobile viewport checks use simulated phone dimensions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("game/control.gd")
+          source = p.read_text(encoding="utf-8")
+          old = "func adapt_layout() -> void:\n\tvar viewport_size: Vector2 = get_viewport_rect().size"
+          new = (
+              "func adapt_layout(viewport_override: Vector2 = Vector2.ZERO) -> void:\n"
+              "\tvar viewport_size: Vector2 = (\n"
+              "\t\tviewport_override if viewport_override.x > 0.0 and viewport_override.y > 0.0\n"
+              "\t\telse get_viewport_rect().size\n"
+              "\t)"
+          )
+          if source.count(old) != 1:
+              raise SystemExit("Cannot locate one original adapt_layout definition")
+          p.write_text(source.replace(old, new), encoding="utf-8")
+
+          test_file = Path("game/tests/mobile_layout.gd")
+          test = test_file.read_text(encoding="utf-8")
+          needle = "\t\tgame.adapt_layout()"
+          if test.count(needle) != 1:
+              raise SystemExit("Cannot locate mobile viewport test call")
+          test_file.write_text(
+              test.replace(needle, "\t\tgame.adapt_layout(Vector2(screen))"),
+              encoding="utf-8"
+          )
+          print("Mobile viewport simulations now pass explicit phone dimensions.")
+          PY
+
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
