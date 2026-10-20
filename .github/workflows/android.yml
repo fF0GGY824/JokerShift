@@ -82,7 +82,7 @@ jobs:
               section = 'renderer/rendering_method.mobile="gl_compatibility"'
               if section not in project:
                   raise SystemExit("Cannot locate Godot rendering settings")
-              project = project.replace(section, section + "\\n" + setting)
+              project = project.replace(section, section + chr(10) + setting)
               config.write_text(project, encoding="utf-8")
           print("Android ETC2/ASTC texture compression enabled.")
           print("Mobile viewport simulations now pass explicit phone dimensions.")
