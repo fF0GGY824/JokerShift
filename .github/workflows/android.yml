@@ -75,6 +75,16 @@ jobs:
               test.replace(needle, "\t\tgame.adapt_layout(Vector2(screen))"),
               encoding="utf-8"
           )
+          config = Path("game/project.godot")
+          project = config.read_text(encoding="utf-8")
+          setting = "textures/vram_compression/import_etc2_astc=true"
+          if setting not in project:
+              section = 'renderer/rendering_method.mobile="gl_compatibility"'
+              if section not in project:
+                  raise SystemExit("Cannot locate Godot rendering settings")
+              project = project.replace(section, section + "\\n" + setting)
+              config.write_text(project, encoding="utf-8")
+          print("Android ETC2/ASTC texture compression enabled.")
           print("Mobile viewport simulations now pass explicit phone dimensions.")
           PY
 
