@@ -5,7 +5,8 @@ on:
   push:
     branches: [main]
     paths:
-      - JokerShiftProject.zip
+      - 'JokerShiftProject для апк.zip'
+      - '.github/workflows/android.yml'
 
 permissions:
   contents: read
@@ -22,11 +23,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -s JokerShiftProject.zip
+          test -s JokerShiftProject для апк.zip
           python3 - <<'PY'
           import zipfile
           from pathlib import Path, PurePosixPath
-          with zipfile.ZipFile("JokerShiftProject.zip") as z:
+          with zipfile.ZipFile("JokerShiftProject для апк.zip") as z:
               if z.testzip() is not None:
                   raise SystemExit("The ZIP file is corrupted")
               names = z.namelist()
