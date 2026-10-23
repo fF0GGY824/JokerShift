@@ -1,5 +1,5 @@
-# JokerShift WebSocket multiplayer server.
-# Works with both the normal ZIP name and names like " (1).zip".
+# JokerShift multiplayer / Render
+# Prefer the latest uploaded game ZIP. Until then use the previous online ZIP.
 services:
   - type: web
     name: jokershift-online-824
@@ -8,15 +8,19 @@ services:
     healthCheckPath: /health
     buildCommand: |
       set -eu
-      if [ ! -s online/server/requirements.txt ]; then
-        set -- JokerShift_EASY_ONLINE_RENDER_READY*.zip
-        if [ ! -f "$1" ]; then
-          echo "ERROR: Upload JokerShift_EASY_ONLINE_RENDER_READY.zip to the root of GitHub." >&2
-          exit 1
+      archive=""
+      for candidate in JokerShift_DOUBLE_TRUMP_EQUAL_RANK*.zip JokerShift_EASY_ONLINE_RENDER_READY*.zip; do
+        if [ -f "$candidate" ]; then
+          archive="$candidate"
+          break
         fi
-        echo "Extracting game server from: $1"
-        python -m zipfile -e "$1" .
+      done
+      if [ -z "$archive" ]; then
+        echo "ERROR: Upload the JokerShift online ZIP (DOUBLE_TRUMP or EASY_ONLINE) to GitHub first." >&2
+        exit 1
       fi
+      echo "Preparing JokerShift WebSocket server from $archive"
+      python -m zipfile -e "$archive" .
       test -s online/server/requirements.txt
       test -s online/server/server.py
       test -s online/server/game.py
