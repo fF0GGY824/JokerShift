@@ -1,6 +1,5 @@
 # JokerShift WebSocket multiplayer server.
-# The original "JokerShiftProject для апк.zip" has NO online/server files.
-# Add JokerShift_EASY_ONLINE_RENDER_READY.zip to this repository first.
+# Works with both the normal ZIP name and names like " (1).zip".
 services:
   - type: web
     name: jokershift-online-824
@@ -9,12 +8,14 @@ services:
     healthCheckPath: /health
     buildCommand: |
       set -eu
-      if [ ! -f online/server/requirements.txt ]; then
-        if [ ! -f JokerShift_EASY_ONLINE_RENDER_READY.zip ]; then
-          echo "ERROR: Upload JokerShift_EASY_ONLINE_RENDER_READY.zip to the root of your GitHub repository. The old archive contains no online server." >&2
+      if [ ! -s online/server/requirements.txt ]; then
+        set -- JokerShift_EASY_ONLINE_RENDER_READY*.zip
+        if [ ! -f "$1" ]; then
+          echo "ERROR: Upload JokerShift_EASY_ONLINE_RENDER_READY.zip to the root of GitHub." >&2
           exit 1
         fi
-        python -m zipfile -e JokerShift_EASY_ONLINE_RENDER_READY.zip .
+        echo "Extracting game server from: $1"
+        python -m zipfile -e "$1" .
       fi
       test -s online/server/requirements.txt
       test -s online/server/server.py
