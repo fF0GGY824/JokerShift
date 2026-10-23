@@ -1,28 +1,29 @@
-# JokerShift online server on Render.
-# Direct Python files are prepared by GitHub Actions from the project ZIP.
-# Falls back to the original ZIP until that workflow has completed.
+# JokerShift WebSocket multiplayer server.
+# The original "JokerShiftProject для апк.zip" has NO online/server files.
+# Add JokerShift_EASY_ONLINE_RENDER_READY.zip to this repository first.
 services:
   - type: web
     name: jokershift-online-824
     runtime: python
     plan: free
-    buildCommand: >-
-      if [ -f online/server/requirements.txt ]; then
-        pip install -r online/server/requirements.txt;
-      else
-        python -m zipfile -e "JokerShiftProject для апк.zip" game &&
-        pip install -r game/online/server/requirements.txt;
+    healthCheckPath: /health
+    buildCommand: |
+      set -eu
+      if [ ! -f online/server/requirements.txt ]; then
+        if [ ! -f JokerShift_EASY_ONLINE_RENDER_READY.zip ]; then
+          echo "ERROR: Upload JokerShift_EASY_ONLINE_RENDER_READY.zip to the root of your GitHub repository. The old archive contains no online server." >&2
+          exit 1
+        fi
+        python -m zipfile -e JokerShift_EASY_ONLINE_RENDER_READY.zip .
       fi
-    startCommand: >-
-      if [ -f online/server/server.py ]; then
-        cd online/server && python server.py;
-      else
-        cd game/online/server && python server.py;
-      fi
+      test -s online/server/requirements.txt
+      test -s online/server/server.py
+      test -s online/server/game.py
+      test -s online/server/social.py
+      python -m pip install -r online/server/requirements.txt
+    startCommand: cd online/server && python server.py
     envVars:
       - key: HOST
         value: 0.0.0.0
-      - key: PYTHON_VERSION
-        value: 3.13.4
       - key: PYTHONUNBUFFERED
         value: "1"
