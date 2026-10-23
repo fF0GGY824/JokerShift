@@ -1,0 +1,15 @@
+# JokerShift multiplayer deployment.
+# This repository stores the Godot project as a ZIP file; Render unpacks it.
+# Replace "JokerShiftProject для апк.zip" with the latest full game archive first.
+services:
+  - type: web
+    name: jokershift-online-824
+    runtime: python
+    plan: free
+    buildCommand: 'python -m zipfile -e "JokerShiftProject для апк.zip" game && pip install -r game/online/server/requirements.txt'
+    startCommand: 'cd game/online/server && python server.py'
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PYTHONUNBUFFERED
+        value: "1"
