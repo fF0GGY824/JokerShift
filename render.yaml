@@ -9,14 +9,14 @@ services:
     buildCommand: |
       set -eu
       archive=""
-      for candidate in JokerShift_DOUBLE_TRUMP_EQUAL_RANK*.zip JokerShift_EASY_ONLINE_RENDER_READY*.zip; do
+      for candidate in JokerShift_DEV9999_TWO_PROFILES*.zip JokerShift_DOUBLE_TRUMP_EQUAL_RANK*.zip JokerShift_EASY_ONLINE_RENDER_READY*.zip; do
         if [ -f "$candidate" ]; then
           archive="$candidate"
           break
         fi
       done
       if [ -z "$archive" ]; then
-        echo "ERROR: Upload the JokerShift online ZIP (DOUBLE_TRUMP or EASY_ONLINE) to GitHub first." >&2
+        echo "ERROR: Upload JokerShift_DEV9999_TWO_PROFILES.zip (latest) to GitHub first." >&2
         exit 1
       fi
       echo "Preparing JokerShift WebSocket server from $archive"
