@@ -1,0 +1,50 @@
+name: Prepare Render server
+on:
+  push:
+    paths:
+      - ".github/workflows/prepare-render-server.yml"
+      - "JokerShift_EASY_ONLINE_RENDER_READY.zip"
+      - "JokerShiftProject для апк.zip"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract Python server sources from JokerShift ZIP
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          candidates = [
+              Path("JokerShift_EASY_ONLINE_RENDER_READY.zip"),
+              Path("JokerShiftProject для апк.zip"),
+          ]
+          archive = next((x for x in candidates if x.is_file()), None)
+          if archive is None:
+              raise RuntimeError("No JokerShift project ZIP in repository")
+          required = ("server.py", "game.py", "social.py", "requirements.txt")
+          dest = Path("online/server")
+          dest.mkdir(parents=True, exist_ok=True)
+          with ZipFile(archive) as z:
+              members = z.namelist()
+              for filename in required:
+                  suffix = f"online/server/{filename}"
+                  matches = [n for n in members if n == suffix or n.endswith("/" + suffix)]
+                  if not matches:
+                      raise RuntimeError(f"{filename} not found inside {archive}")
+                  chosen = min(matches, key=len)
+                  (dest / filename).write_bytes(z.read(chosen))
+                  print(f"Prepared {filename} from {chosen}")
+          PY
+      - name: Publish server sources
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add online/server/server.py online/server/game.py online/server/social.py online/server/requirements.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish JokerShift server sources for Render"
+            git push
+          fi
