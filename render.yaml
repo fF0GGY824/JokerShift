@@ -1,20 +1,28 @@
-# JokerShift multiplayer WebSocket server.
-# Uses the newest easy-online archive when uploaded; otherwise the current
-# JokerShiftProject archive already present in this repository.
+# JokerShift online server on Render.
+# Direct Python files are prepared by GitHub Actions from the project ZIP.
+# Falls back to the original ZIP until that workflow has completed.
 services:
   - type: web
     name: jokershift-online-824
     runtime: python
     plan: free
     buildCommand: >-
-      python -c 'import os,zipfile;
-      p="JokerShift_EASY_ONLINE_RENDER_READY.zip";
-      p=p if os.path.isfile(p) else "JokerShiftProject для апк.zip";
-      zipfile.ZipFile(p).extractall("game")'
-      && pip install -r game/online/server/requirements.txt
-    startCommand: cd game/online/server && python server.py
+      if [ -f online/server/requirements.txt ]; then
+        pip install -r online/server/requirements.txt;
+      else
+        python -m zipfile -e "JokerShiftProject для апк.zip" game &&
+        pip install -r game/online/server/requirements.txt;
+      fi
+    startCommand: >-
+      if [ -f online/server/server.py ]; then
+        cd online/server && python server.py;
+      else
+        cd game/online/server && python server.py;
+      fi
     envVars:
       - key: HOST
         value: 0.0.0.0
+      - key: PYTHON_VERSION
+        value: 3.13.4
       - key: PYTHONUNBUFFERED
         value: "1"
