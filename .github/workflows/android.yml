@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'JokerShiftProject для апк.zip'
+      - 'JokerShift_DEVONE_1_PROFILE.zip'
       - '.github/workflows/android.yml'
 
 permissions:
@@ -23,11 +24,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -s "JokerShiftProject для апк.zip"
-          python3 - <<'PY'
+          SOURCE_ZIP=""
+          for candidate in "JokerShift_DEVONE_1_PROFILE.zip" "JokerShiftProject для апк.zip"; do
+            if [ -s "$candidate" ]; then SOURCE_ZIP="$candidate"; break; fi
+          done
+          test -n "$SOURCE_ZIP" || { echo "ERROR: Upload JokerShift_DEVONE_1_PROFILE.zip or JokerShiftProject для апк.zip"; exit 1; }
+          echo "Building APK from $SOURCE_ZIP"
+          python3 - "$SOURCE_ZIP" <<'PY'
+          import sys
           import zipfile
           from pathlib import Path, PurePosixPath
-          with zipfile.ZipFile("JokerShiftProject для апк.zip") as z:
+          with zipfile.ZipFile(sys.argv[1]) as z:
               if z.testzip() is not None:
                   raise SystemExit("The ZIP file is corrupted")
               names = z.namelist()
@@ -62,19 +69,25 @@ jobs:
               "\t\telse get_viewport_rect().size\n"
               "\t)"
           )
-          if source.count(old) != 1:
-              raise SystemExit("Cannot locate one original adapt_layout definition")
-          p.write_text(source.replace(old, new), encoding="utf-8")
+          if source.count(old) == 1:
+              p.write_text(source.replace(old, new), encoding="utf-8")
+          elif source.count("func adapt_layout(viewport_override: Vector2 = Vector2.ZERO) -> void:") == 1:
+              print("Mobile layout already updated; leaving source unchanged.")
+          else:
+              raise SystemExit("Unknown adapt_layout definition; check source")
 
           test_file = Path("game/tests/mobile_layout.gd")
           test = test_file.read_text(encoding="utf-8")
           needle = "\t\tgame.adapt_layout()"
-          if test.count(needle) != 1:
-              raise SystemExit("Cannot locate mobile viewport test call")
-          test_file.write_text(
-              test.replace(needle, "\t\tgame.adapt_layout(Vector2(screen))"),
-              encoding="utf-8"
-          )
+          if test.count(needle) == 1:
+              test_file.write_text(
+                  test.replace(needle, "\t\tgame.adapt_layout(Vector2(screen))"),
+                  encoding="utf-8"
+              )
+          elif test.count("\t\tgame.adapt_layout(Vector2(screen))") == 1:
+              print("Mobile viewport test already updated.")
+          else:
+              raise SystemExit("Unknown mobile viewport test call")
           config = Path("game/project.godot")
           project = config.read_text(encoding="utf-8")
           setting = "textures/vram_compression/import_etc2_astc=true"
