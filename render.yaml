@@ -5,6 +5,8 @@ services:
     name: jokershift-online-824
     runtime: python
     plan: free
+    branch: main
+    autoDeployTrigger: commit
     healthCheckPath: /health
     buildCommand: |
       set -eu
@@ -25,6 +27,7 @@ services:
       test -s online/server/server.py
       test -s online/server/game.py
       test -s online/server/social.py
+      python -m py_compile online/server/server.py online/server/game.py online/server/social.py
       python -m pip install -r online/server/requirements.txt
     startCommand: cd online/server && python server.py
     envVars:
@@ -32,3 +35,5 @@ services:
         value: 0.0.0.0
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: DEV_PROMO_PROFILE_LIMIT
+        value: "5"
