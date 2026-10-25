@@ -11,7 +11,7 @@ services:
     buildCommand: |
       set -eu
       archive=""
-      for candidate in JokerShift_DEVONE_1_PROFILE*.zip JokerShift_DEV9999_5_PROFILES*.zip JokerShift_DEV9999_TWO_PROFILES*.zip JokerShift_DOUBLE_TRUMP_EQUAL_RANK*.zip JokerShift_EASY_ONLINE_RENDER_READY*.zip; do
+      for candidate in JokerShift_ONLINE_BITO_TAKE_FIXED*.zip JokerShift_DEVONE_1_PROFILE*.zip JokerShift_DEV9999_5_PROFILES*.zip JokerShift_DEV9999_TWO_PROFILES*.zip JokerShift_DOUBLE_TRUMP_EQUAL_RANK*.zip JokerShift_EASY_ONLINE_RENDER_READY*.zip; do
         if [ -f "$candidate" ]; then
           archive="$candidate"
           break
