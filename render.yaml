@@ -23,6 +23,11 @@ services:
       fi
       echo "Preparing JokerShift WebSocket server from $archive"
       python -m zipfile -e "$archive" .
+      if ! grep -q 'finish_ready' online/server/game.py; then
+        base64 -d patches/online_sync_2026_10_25.patch.gz.b64 | gzip -dc | patch --batch --fuzz=0 -p0
+      fi
+      grep -q 'finish_ready' online/server/game.py
+      grep -q 'finish_ready' online/online_ui.gd
       test -s online/server/requirements.txt
       test -s online/server/server.py
       test -s online/server/game.py
