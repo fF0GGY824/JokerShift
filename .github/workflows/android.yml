@@ -74,6 +74,18 @@ jobs:
           print('Verified two-player Bito synchronization in APK sources.')
           PY
 
+      - name: Preserve latest Android shop swipe fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! grep -q 'func _shop_forward_touch_scroll' game/control.gd; then
+            base64 -d patches/shop_scroll_android.patch.gz.b64 | gzip -dc | (cd game && patch --batch --fuzz=0 -p0)
+          fi
+          printf '%s\n' \
+            'da51607e0775e1447ed506a733fbe7fcba55472be3e68d7ff1fe2cd31b665cac  game/control.gd' \
+            '7125b00611753d2e73248b6b0977fb6e9918e74fc1d8c1f0c6568d6203e89cca  game/online/server/game.py' \
+            'e22c0f4f7bd8874e72995922aab22d4e7a918f384afd5f2899ce3c0f09759662  game/online/online_ui.gd' | sha256sum --check
+
       - name: Make mobile viewport checks use simulated phone dimensions
         shell: bash
         run: |
