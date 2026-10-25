@@ -8,6 +8,7 @@ on:
       - 'JokerShiftProject для апк.zip'
       - 'JokerShift_DEVONE_1_PROFILE.zip'
       - 'JokerShift_SHOP_TOUCH_SCROLL_FIXED.zip'
+      - 'JokerShift_ONLINE_BITO_TAKE_FIXED.zip'
       - '.github/workflows/android.yml'
 
 permissions:
@@ -26,7 +27,7 @@ jobs:
         run: |
           set -euo pipefail
           SOURCE_ZIP=""
-          for candidate in "JokerShift_SHOP_TOUCH_SCROLL_FIXED.zip" "JokerShift_DEVONE_1_PROFILE.zip" "JokerShiftProject для апк.zip"; do
+          for candidate in "JokerShift_ONLINE_BITO_TAKE_FIXED.zip" "JokerShift_SHOP_TOUCH_SCROLL_FIXED.zip" "JokerShift_DEVONE_1_PROFILE.zip" "JokerShiftProject для апк.zip"; do
             if [ -s "$candidate" ]; then SOURCE_ZIP="$candidate"; break; fi
           done
           test -n "$SOURCE_ZIP" || { echo "ERROR: Upload JokerShift_DEVONE_1_PROFILE.zip or JokerShiftProject для апк.zip"; exit 1; }
