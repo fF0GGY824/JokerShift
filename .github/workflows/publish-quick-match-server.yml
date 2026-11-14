@@ -1,0 +1,71 @@
+name: Update JokerShift quick-match server for Render
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-quick-match-server.yml'
+      - 'patches/quick_match_server_2026_11_14.patch'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update server inside Render source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          root = Path(".")
+          archive = root / "JokerShift_DEVONE_1_PROFILE.zip"
+          if not archive.is_file():
+              raise SystemExit("Missing source archive used by Render: " + str(archive))
+          Path("/tmp/joker_server_update").mkdir(exist_ok=True)
+          with ZipFile(archive) as z:
+              if z.testzip() is not None:
+                  raise SystemExit("Archive failed CRC check")
+              z.extract("online/server/server.py", "/tmp/joker_server_update")
+          PY
+          SOURCE="/tmp/joker_server_update/online/server/server.py"
+          if ! grep -q 'async def quick_match' "$SOURCE"; then
+            patch --batch --fuzz=0 -p0 -d /tmp/joker_server_update < patches/quick_match_server_2026_11_14.patch
+          fi
+          grep -q 'async def quick_match' "$SOURCE"
+          grep -q 'quick_cancel' "$SOURCE"
+          python3 -m py_compile "$SOURCE"
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile, ZIP_DEFLATED
+          old = Path("JokerShift_DEVONE_1_PROFILE.zip")
+          temp = old.with_suffix(".new.zip")
+          source = Path("/tmp/joker_server_update/online/server/server.py").read_bytes()
+          with ZipFile(old) as zin, ZipFile(temp, "w", ZIP_DEFLATED, compresslevel=6) as zout:
+              for info in zin.infolist():
+                  data = source if info.filename == "online/server/server.py" else zin.read(info)
+                  zout.writestr(info, data)
+          with ZipFile(temp) as z:
+              assert z.testzip() is None
+              assert b'async def quick_match' in z.read('online/server/server.py')
+          temp.replace(old)
+          print("Quick Match server is embedded in Render archive")
+          PY
+      - name: Publish updated server archive
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add JokerShift_DEVONE_1_PROFILE.zip
+          if ! git diff --cached --quiet; then
+            git commit -m "Update Render server with random matchmaking"
+            git push origin HEAD:main
+          else
+            echo 'Server archive is already up to date'
+          fi
