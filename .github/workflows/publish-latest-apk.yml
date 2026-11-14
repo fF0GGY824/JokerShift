@@ -1,0 +1,134 @@
+name: Publish current JokerShift APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'github_source_parts/**'
+      - '.github/workflows/publish-latest-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish_android:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 50
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Recover latest source and verify ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, pathlib, zipfile
+          parts=sorted(pathlib.Path('github_source_parts').glob('jokershift_source.b64.*'))
+          assert len(parts)==19, f'Expected 19 parts, found {len(parts)}'
+          text=''.join(p.read_text().strip() for p in parts)
+          data=base64.b64decode(text,validate=True)
+          checksum=hashlib.sha256(data).hexdigest()
+          assert checksum=='7e8327a81e8e6c64508e3d92541c79bb737a9de25ad1ab49e9934c11cd02128f', checksum
+          pathlib.Path('JokerShift_LATEST_SOURCE.zip').write_bytes(data)
+          with zipfile.ZipFile('JokerShift_LATEST_SOURCE.zip') as z:
+              assert z.testzip() is None
+              names=set(z.namelist())
+              for f in ('project.godot','control.gd','control.tscn','export_presets.cfg','online/online_ui.gd','online/server/server.py','tests/smoke.gd'):
+                  assert f in names, f
+              assert not any(n.endswith(('.db','.pyc','.env')) for n in names)
+              for name in names:
+                  pp=pathlib.PurePosixPath(name)
+                  if pp.is_absolute() or '..' in pp.parts: raise SystemExit('Unsafe ZIP entry '+name)
+              z.extractall('game')
+          print('Latest source verified and extracted:',len(data),'bytes')
+          PY
+
+      - name: Install Java and Android SDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools build-tools;35.0.0 platforms;android-35'
+
+      - name: Install Godot and Android export templates
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=https://github.com/godotengine/godot/releases/download/4.7.2-stable
+          curl -fL --retry 3 -o godot.zip "$BASE/Godot_v4.7.2-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          chmod +x Godot_v4.7.2-stable_linux.x86_64
+          sudo mv Godot_v4.7.2-stable_linux.x86_64 /usr/local/bin/godot
+          curl -fL --retry 3 -o templates.tpz "$BASE/Godot_v4.7.2-stable_export_templates.tpz"
+          mkdir -p "$HOME/.local/share/godot/export_templates/4.7.2.stable" /tmp/jokershift-templates
+          unzip -q templates.tpz -d /tmp/jokershift-templates
+          cp -a /tmp/jokershift-templates/templates/. "$HOME/.local/share/godot/export_templates/4.7.2.stable/"
+          godot --headless --version
+
+      - name: Configure Android debug keystore
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.android" "$HOME/.config/godot"
+          keytool -genkeypair -noprompt -keystore "$HOME/.android/debug.keystore"             -alias androiddebugkey -storepass android -keypass android             -keyalg RSA -keysize 2048 -validity 10000             -dname "CN=JokerShift Debug,O=Android,C=US"
+          cat > "$HOME/.config/godot/editor_settings-4.tres" <<EOF
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/java_sdk_path = "$JAVA_HOME"
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/debug_keystore = "$HOME/.android/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          EOF
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android" >> "$GITHUB_ENV"
+
+      - name: Import and validate game scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd game
+          godot --headless --path . --editor --import 2>&1 | tee /tmp/godot-import.log
+          if grep -Ein 'Parse Error:|SCRIPT ERROR:' /tmp/godot-import.log; then exit 1; fi
+          godot --headless --path . --script res://tests/online_layout.gd
+          godot --headless --path . --script res://tests/mobile_layout.gd
+
+      - name: Build and verify Android APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd game
+          mkdir -p build
+          godot --headless --path . --export-debug Android build/JokerShift.apk
+          test -s build/JokerShift.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify build/JokerShift.apk
+          unzip -tq build/JokerShift.apk | tail -2
+
+      - name: Keep APK as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: JokerShift-Latest-APK
+          path: game/build/JokerShift.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish APK to GitHub Releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="v0.3.0-online-ui-fixed"
+          APK="game/build/JokerShift.apk"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" --clobber
+          else
+            gh release create "$TAG" "$APK" --latest               --title "JokerShift — Online Update + Grey Screen Fix"               --notes "Тестовый Android APK из последнего проекта JokerShift: новый онлайн-интерфейс, быстрая игра, новости с Telegram и исправление серого экрана. Подпись и ресурсы проверены в GitHub Actions."
+          fi
