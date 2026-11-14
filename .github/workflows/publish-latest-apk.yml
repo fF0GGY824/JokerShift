@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'github_source_parts/**'
+      - 'github_source_overrides/**'
       - '.github/workflows/publish-latest-apk.yml'
   workflow_dispatch:
 
@@ -44,6 +45,16 @@ jobs:
               z.extractall('game')
           print('Latest source verified and extracted:',len(data),'bytes')
           PY
+
+      - name: Apply latest neon online match layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp github_source_overrides/online_ui.gd game/online/online_ui.gd
+          grep -q 'OnlineCompactTopBar' game/online/online_ui.gd
+          grep -q 'func _neon_style' game/online/online_ui.gd
+          grep -q 'OnlineDeckTrumpHUD' game/online/online_ui.gd
+          echo 'Updated Godot online match UI: neon mockup layout'
 
       - name: Install Java and Android SDK
         uses: actions/setup-java@v4
@@ -125,10 +136,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="v0.3.0-online-ui-fixed"
+          TAG="v0.4.0-neon-online"
           APK="game/build/JokerShift.apk"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" --clobber
           else
-            gh release create "$TAG" "$APK" --latest               --title "JokerShift — Online Update + Grey Screen Fix"               --notes "Тестовый Android APK из последнего проекта JokerShift: новый онлайн-интерфейс, быстрая игра, новости с Telegram и исправление серого экрана. Подпись и ресурсы проверены в GitHub Actions."
+            gh release create "$TAG" "$APK" --latest               --title "JokerShift — Neon Online Match Update"               --notes "Тестовый Android APK: неоновый стол онлайн-матча в стиле игры против бота, крупный веер карт, фиксированные кнопки, быстрый поиск, комнаты по коду. Проверка Godot и подписи в GitHub Actions."
           fi
