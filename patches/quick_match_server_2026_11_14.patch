@@ -1,0 +1,125 @@
+--- online/server/server.py
++++ online/server/server.py
+@@ -39,6 +39,7 @@
+     names: list[str] = field(default_factory=list)
+     ready: set[int] = field(default_factory=set)
+     game: Game | None = None
++    mode: str = "code"  # code or quick: quick matches start automatically.
+     touched: float = field(default_factory=time.monotonic)
+ 
+ 
+@@ -50,6 +51,7 @@
+         self.invitations: dict[tuple[str, str], tuple[str, float]] = {}
+         self.rooms: dict[str, Room] = {}
+         self.users: dict[Any, tuple[str, int]] = {}
++        self.quick_queue: deque[Any] = deque()
+         self.attempts: dict[Any, deque[float]] = defaultdict(deque)
+         self.connected: set[Any] = set()
+ 
+@@ -85,8 +87,67 @@
+             await self.send(ws, {
+                 "type": "room", "code": room.code, "seat": seat,
+                 "players": room.names, "ready": sorted(room.ready),
++                "mode": room.mode,
+                 "stage": "game" if room.game else "waiting",
+             })
++
++    def remove_from_quick_queue(self, ws: Any) -> bool:
++        """Remove all stale entries, including during disconnect/cancel."""
++        if ws not in self.quick_queue:
++            return False
++        self.quick_queue = deque(peer for peer in self.quick_queue if peer is not ws)
++        return True
++
++    async def quick_match(self, ws: Any) -> None:
++        """FIFO matchmaking against another connected authenticated user.
++
++        A quick match uses the same authoritative Game object as code rooms.
++        The server starts it immediately; no ready buttons or manual codes.
++        """
++        if ws not in self.sessions:
++            await self.error(ws, "Сначала подключи игровой профиль.")
++            return
++        if ws in self.users:
++            await self.error(ws, "Сначала покинь текущую комнату.")
++            return
++        if ws in self.quick_queue:
++            await self.send(ws, {"type": "matchmaking", "status": "waiting"})
++            return
++        self.prune_rooms()
++        if len(self.rooms) >= MAX_ROOMS:
++            await self.error(ws, "Все игровые комнаты заняты. Попробуй позднее.")
++            return
++        opponent = None
++        # Preserve other users' place if they are incompatible, for example
++        # because either player has blocked the other.
++        for _ in range(len(self.quick_queue)):
++            peer = self.quick_queue.popleft()
++            if peer is ws or peer not in self.connected or peer not in self.sessions or peer in self.users:
++                continue
++            peer_id = self.sessions[peer]
++            my_id = self.sessions[ws]
++            if self.social.blocked(peer_id, my_id) or self.social.blocked(my_id, peer_id):
++                self.quick_queue.append(peer)
++                continue
++            opponent = peer
++            break
++        if opponent is None:
++            self.quick_queue.append(ws)
++            await self.send(ws, {"type": "matchmaking", "status": "waiting"})
++            return
++        while True:
++            code = f"{secrets.randbelow(900000) + 100000:06d}"
++            if code not in self.rooms:
++                break
++        names = [self.social.name_of(self.sessions[opponent]), self.social.name_of(self.sessions[ws])]
++        room = Room(code=code, clients=[opponent, ws], names=names,
++                    ready={0, 1}, mode="quick")
++        room.game = Game(names)
++        self.rooms[code] = room
++        self.users[opponent] = (code, 0)
++        self.users[ws] = (code, 1)
++        await self.announce_room(room)
++        await self.broadcast_state(room)
+ 
+     async def broadcast_state(self, room: Room) -> None:
+         if room.game:
+@@ -265,10 +326,20 @@
+         if kind == "ping":
+             await self.send(ws, {"type": "pong"})
+             return
++        if kind == "quick_match":
++            await self.quick_match(ws)
++            return
++        if kind == "quick_cancel":
++            self.remove_from_quick_queue(ws)
++            await self.send(ws, {"type": "matchmaking", "status": "cancelled"})
++            return
+         if kind == "leave":
+             await self.leave(ws)
+             return
+         if kind == "create":
++            if ws in self.quick_queue:
++                await self.error(ws, "Сначала отмени быстрый поиск.")
++                return
+             if ws in self.users:
+                 await self.error(ws, "Сначала покинь текущую комнату.")
+                 return
+@@ -287,6 +358,9 @@
+             await self.announce_room(room)
+             return
+         if kind == "join":
++            if ws in self.quick_queue:
++                await self.error(ws, "Сначала отмени быстрый поиск.")
++                return
+             if ws in self.users:
+                 await self.error(ws, "Сначала покинь текущую комнату.")
+                 return
+@@ -354,6 +428,7 @@
+ 
+     async def leave(self, ws: Any) -> None:
+         self.attempts.pop(ws, None)
++        self.remove_from_quick_queue(ws)
+         assignment = self.users.pop(ws, None)
+         if not assignment:
+             return
